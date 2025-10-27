@@ -1,0 +1,40 @@
+# Python compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Django stuff
+*.log
+local_settings.py
+media/
+staticfiles/
+static_root/
+*.pot
+*.mo
+
+# Environment variables / secrets
+.env
+*.env
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Pytest / coverage
+.coverage
+*.cover
+htmlcov/
+.pytest_cache/

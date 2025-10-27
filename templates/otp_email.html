@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+{% load static %}
+<html>
+  <body style="font-family: Arial, sans-serif; text-align: center; background: #e5e7eb; padding: 20px; border-radius: 16px; margin: 0;">
+    <div style="max-width: 500px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 0;">
+      <div style="width: 100%; display: flex; justify-content: center; align-items: center; padding-top: 24px; padding-bottom: 8px;">
+        <img src="https://drive.google.com/uc?export=view&id=1PrYwAwwrCMAkz1FSTEbdOs-O8EtlGziC" alt="KrushiSetu Logo" style="max-width: 80%; height: auto; border-radius: 12px; display: block; margin: 0 auto;">
+      </div>
+      <div style="background: #fff; padding: 20px; border-radius: 0 0 16px 16px; max-width: 100%; margin: 0 auto;">
+        <h2 style="color: #4285f4;">Verify your email</h2>
+        <p>This is a verification email from KrushiSetu.</p>
+        <p>We received a request to Reset Password from <b>{{ user_email }}</b> </p>
+        <p>Use this code to verify your email:</p>
+        <h1 style="font-size: 36px; letter-spacing: 4px; color: #333;">{{ otp }}</h1>
+        <p>Please do not share the OTP with anyone.</P>
+        <p>This is a verification email. Please do not reply</p>
+        <p>Thank You,</p>
+        <p>🤝 Team KrushiSetu</p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+      </div>
+    </div>
+  </body>
+</html>
