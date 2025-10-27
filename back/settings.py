@@ -23,12 +23,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-r@0q!s@*@_r(0d)v^4()ej4-kipbw5&q^u@zs4rt+goiraknv!'
+SECRET_KEY = os.environ.get("SECRET_KEY", "unsafe-default-key-for-dev")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost").split(",")
 
 
 # Application definition
@@ -92,12 +92,10 @@ TEMPLATES = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:8000",
-    # "https://krushi-setu-htmwj4wp2-jainil-s-projects.vercel.app",
-    # "https://krushisetu-backend-production-4a02.up.railway.app",
-]
+CORS_ALLOWED_ORIGINS = os.environ.get(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000"
+).split(",")
 
 # If testing, you can allow all (not safe for prod)
 CORS_ALLOW_ALL_ORIGINS = True
@@ -107,10 +105,11 @@ CORS_ALLOW_HEADERS = [
     "authorization",
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173/",
-    # Y"https://krushi-setu-htmwj4wp2-jainil-s-projects.vercel.app",
-]
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    "CSRF_TRUSTED_ORIGINS",
+    "http://localhost:3000"
+).split(",")
+
 WSGI_APPLICATION = 'back.wsgi.application'
 
 
