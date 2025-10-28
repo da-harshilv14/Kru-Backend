@@ -25,9 +25,6 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from .models import PasswordResetOTP 
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
-from django.template.loader import render_to_string
 import os
 otp = ""
 
@@ -51,34 +48,20 @@ def forgot_password_send_otp(request):
         defaults={"otp": otp}
     )
 
-    html_content = render_to_string('templates/otp_email.html', {
-        'user_email': email,
-        'otp': otp,
-    })
-
+    subject = "E-mail verification"
+    message = f'Your OTP is {otp}, please do not share it with anyone'
 
     try:
-        # Prepare the SendGrid message
-        message = Mail(
-            from_email=settings.DEFAULT_FROM_EMAIL,  # must match verified sender
-            to_emails=email,
-            subject="Email Verification - KrushiSetu",
-            html_content=html_content
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False
         )
-
-        # Send via SendGrid
-        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-        response = sg.send(message)
-
-        # Log SendGrid response (optional)
-        print("SendGrid Response:", response.status_code)
-        if response.status_code >= 400:
-            return Response({"error": "Failed to send email via SendGrid"}, status=500)
-
         return Response({"success": "Email sent successfully!"})
-
     except Exception as e:
-        return Response({"error": f"Error sending email: {e}"}, status=500)
+        return Response({"error": f"Error sending email: {e}"}, status=500) 
 
 @api_view(['POST'])
 def forgot_password_verify_otp(request):
