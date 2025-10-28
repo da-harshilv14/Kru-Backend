@@ -200,13 +200,19 @@ TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = None
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'   
-EMAIL_PORT = 587                               
-EMAIL_USE_TLS = True  
-EMAIL_USE_SSL = False                          
+
+EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+SENDGRID_ECHO_TO_STDOUT = True
+
+# EMAIL_HOST = 'smtp.gmail.com'   
+# EMAIL_PORT = 587                               
+# EMAIL_USE_TLS = True  
+# EMAIL_USE_SSL = False                          
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')    
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER 
 CORS_ALLOW_ALL_ORIGINS = True
 MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
