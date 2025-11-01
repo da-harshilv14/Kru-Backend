@@ -136,45 +136,54 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
-        remember_me = request.data.get("remember", False)  # get from request body
+        remember_me = request.data.get("remember", False)
+        
+        # Call parent to get tokens
         response = super().post(request, *args, **kwargs)
-        data = response.data
+        
+        if response.status_code == 200:
+            data = response.data
+            refresh = data.get("refresh")
+            access = data.get("access")
 
-        refresh = data.get("refresh")
-        access = data.get("access")
+            # Set default expiry
+            access_max_age = 300  # 5 minutes
+            refresh_max_age = 7*24*60*60  # 7 days
 
-        # Set default expiry
-        access_max_age = 300  # 5 minutes
-        refresh_max_age = 7*24*60*60  # 7 days
+            # Extend expiry if remember_me is checked
+            if remember_me:
+                access_max_age = 60*60*24  # 1 day
+                refresh_max_age = 30*24*60*60  # 30 days
 
-        # Extend expiry if remember_me is checked
-        if remember_me:
-            print("working")
-            access_max_age = 60*60*24  # 1 day
-            refresh_max_age = 30*24*60*60  # 30 days
+            # Set HttpOnly cookies
+              
+            response.set_cookie(
+                key="access_token",
+                value=access,
+                httponly=True,
+                secure=True,  # Set to True in production with HTTPS
+                samesite="None",
+                max_age=access_max_age,
+                domain=None,  # Allow cookie on localhost
+                path="/",  # Make cookie available for all paths
+            )
 
-        # Set HttpOnly cookies
-        response.set_cookie(
-            key="access_token",
-            value=access,
-            httponly=True,
-            secure=False,   # ❌ set True in production with HTTPS
-            samesite="Strict",
-            max_age=access_max_age,    # 5 mins
-        )
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh,
+                httponly=True,
+                secure=True,
+                samesite="None",
+                max_age=refresh_max_age,
+                domain=None,
+                path="/",
+            )
 
-        response.set_cookie(
-            key="refresh_token",
-            value=refresh,
-            httponly=True,
-            secure=False,
-            samesite="Strict",
-            max_age=refresh_max_age,  # 7 days
-        )
-
-        # You can remove tokens from response body if you want
-        del response.data["access"]
-        del response.data["refresh"]
+            # Remove tokens from response body for security
+            response.data = {
+                "message": "Login successful",
+                "user": data.get("user", {}),
+            }
 
         return response
 
@@ -193,8 +202,8 @@ class CookieTokenRefreshView(APIView):
                 key="access_token",
                 value=access,
                 httponly=True,
-                secure=False,
-                samesite="Strict",
+                secure=True,
+                samesite="None",
                 max_age=300,   
             )
             return response
@@ -235,21 +244,31 @@ class VerifyOTPView(APIView):
                     access_max_age = 60*60*24  # 1 day
                     refresh_max_age = 30*24*60*60  # 30 days
 
-                response = Response({"message": "Login successful"}, status=status.HTTP_200_OK)
+                response = Response({
+                    'message': 'Login successful',
+                    'user': {
+                        'id': user.id,
+                        'email': user.email_address,
+                        'full_name': user.full_name,
+                        'role': user.role
+                    }
+                }, status=status.HTTP_200_OK)
+                
+                # Set cookies with proper settings
                 response.set_cookie(
-                    key="access_token",
-                    value=access,
+                    'access_token',
+                    access,
                     httponly=True,
-                    secure=False,  # True in production
-                    samesite="Strict",
+                    secure=True,  # Set to True in production with HTTPS
+                    samesite="None",
                     max_age=access_max_age,
                 )
                 response.set_cookie(
-                    key="refresh_token",
-                    value=refresh_token,
+                    'refresh_token',
+                    refresh_token,
                     httponly=True,
-                    secure=False,
-                    samesite="Strict",
+                    secure=True,
+                    samesite="None",
                     max_age=refresh_max_age,
                 )
 

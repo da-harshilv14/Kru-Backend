@@ -1,0 +1,15 @@
+{% load cloudinary %}
+
+<h1>Cloudinary images</h1>
+
+{% for photo in photos %}
+    <div>
+        <h2>{{ photo.title }}</h2>
+        <h3>{{ photo.description }}</h3>
+        {% cloudinary photo.image width=400 height=300 crop="fill" %}
+        <p>Uploaded: {{ photo.uploaded_at|date:"M d, Y" }}</p>
+    </div>
+    <hr>
+{% empty %}
+    <p>No photos uploaded yet.</p>
+{% endfor %}

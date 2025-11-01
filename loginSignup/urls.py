@@ -1,6 +1,6 @@
+from .auth_utils import GoogleLoginView
 from django.urls import path
 from . import views
-from .auth_utils import GoogleLoginView
 
 urlpatterns = [
     path("signup/", views.UserSignupView.as_view(), name="signup"),

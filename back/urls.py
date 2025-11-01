@@ -23,4 +23,5 @@ urlpatterns = [
     path('api/', include('app.urls')),
     path('', include('app.urls')),
     path('profile/', include('dashboard.urls')),
+    path('photo/', include('photo.urls')),
 ]
