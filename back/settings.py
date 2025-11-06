@@ -51,8 +51,10 @@ INSTALLED_APPS = [
     'django_otp.plugins.otp_hotp',
     'app',
     'dashboard',
+    'support',
     'photo',
     'cloudinary',
+    'cloudinary_storage'
 ]
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -70,9 +72,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "corsheaders.middleware.CorsMiddleware",  
-    "django.middleware.common.CommonMiddleware",
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',  
     'django_otp.middleware.OTPMiddleware',
     'back.middleware.JWTAuthenticationFromCookie',
 ]
@@ -97,12 +97,12 @@ TEMPLATES = [
 # Session and Cookie settings
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = False  # True in production
+SESSION_COOKIE_SECURE = True  # True in production
 SESSION_COOKIE_DOMAIN = None  # Allow localhost
 
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_DOMAIN = None
 
 # CORS settings
@@ -158,6 +158,8 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 
 # Password validation
@@ -230,19 +232,22 @@ TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = None
 
+# SendGrid Email settings
 EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 SENDGRID_SANDBOX_MODE_IN_DEBUG = False
 SENDGRID_ECHO_TO_STDOUT = True
 
+# Google SMTP settings (as a fallback or alternative)
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 # EMAIL_HOST = 'smtp.gmail.com'   
 # EMAIL_PORT = 587                               
 # EMAIL_USE_TLS = True  
 # EMAIL_USE_SSL = False                          
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')    
 # EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER 
+
 CORS_ALLOW_ALL_ORIGINS = True
 MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
 MEDIA_URL = '/media/'
@@ -272,3 +277,24 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+# ============================
+# Production Security Settings
+# ============================
+
+if not DEBUG:
+    # Force HTTPS security
+    SECURE_SSL_REDIRECT = True
+
+    # HSTS (ONLY when your production domain is HTTPS)
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # Cookies secure
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    # XSS & Clickjacking
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True

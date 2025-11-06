@@ -20,7 +20,7 @@ class Document(models.Model):
     document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPES)
     document_number = models.CharField(max_length=50)
     file = CloudinaryField('document', resource_type='auto')
-    resource_type = models.CharField(max_length=10, default='raw')  # Changed from 'image' to 'raw'
+    resource_type = models.CharField(max_length=10, blank=True, null=True)     # Optional now
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

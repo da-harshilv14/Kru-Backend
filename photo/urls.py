@@ -1,14 +1,13 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from . import views
-
-router = DefaultRouter()
-router.register(r'documents', views.DocumentViewSet, basename='document')
+from django.urls import path
+from .views import (
+    UserDocumentsListCreateView,
+    UserDocumentRetrieveUpdateView,
+    UserDocumentDeleteView
+)
 
 urlpatterns = [
-    path('', views.index, name='photo_index'),
-    path('api/', include(router.urls)),
-    path('api/debug-cookies/', views.debug_cookies, name='debug_cookies'),
-    path('api/test-cookie/', views.test_set_cookie, name='test_cookie'),
-    path('api/documents/<int:pk>/debug/', views.debug_document, name='debug_document'),
+    path('documents/', UserDocumentsListCreateView.as_view(), name='documents-list-create'),
+    path('documents/<int:pk>/', UserDocumentRetrieveUpdateView.as_view(), name='documents-retrieve-update'),
+    path('documents/<int:pk>/delete/', UserDocumentDeleteView.as_view(), name='documents-delete'),
 ]
+

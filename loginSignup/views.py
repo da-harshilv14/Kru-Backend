@@ -1,18 +1,15 @@
 from rest_framework import generics
 from .models import User
 from django.http import HttpResponse
-
 from .serializers import UserSignupSerializer
-from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework.response import Response
-from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework import status
 from django.contrib.auth import authenticate
-from .otp_utils import send_otp_sms, verify_otp_sms
+from .otp_utils import send_otp_sms, verify_otp_sms, already_sent_otp, resend_otp_sms
 from .auth_utils import login_with_otp_success
 from dotenv import load_dotenv, dotenv_values 
 from django.conf import settings
@@ -136,56 +133,54 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
+        email = request.data.get("email_address")
+        password = request.data.get("password")
+        role = request.data.get("role")
         remember_me = request.data.get("remember", False)
-        
-        # Call parent to get tokens
+
+        if not email or not password or not role:
+            return Response({"error": "Email, password and role are required"}, status=400)
+
+        # Check email exists
+        try:
+            user = User.objects.get(email_address=email)
+        except User.DoesNotExist:
+            return Response({"error": "Email not registered"}, status=404)
+
+       
+        # Check role
+        if user.role != role.lower():
+            return Response({"error": "Role does not match this email"}, status=400)
+
+        # Check password
+        if not user.check_password(password):
+            return Response({"error": "Incorrect password. Please try again."}, status=400)
+
+        # now call parent to generate tokens
         response = super().post(request, *args, **kwargs)
-        
+
         if response.status_code == 200:
             data = response.data
             refresh = data.get("refresh")
             access = data.get("access")
 
-            # Set default expiry
-            access_max_age = 300  # 5 minutes
-            refresh_max_age = 7*24*60*60  # 7 days
+            access_max_age = 300   # default 5 mins
+            refresh_max_age = 7*24*60*60
 
-            # Extend expiry if remember_me is checked
             if remember_me:
-                access_max_age = 60*60*24  # 1 day
-                refresh_max_age = 30*24*60*60  # 30 days
+                access_max_age = 86400
+                refresh_max_age = 30*24*60*60
 
-            # Set HttpOnly cookies
-              
-            response.set_cookie(
-                key="access_token",
-                value=access,
-                httponly=True,
-                secure=True,  # Set to True in production with HTTPS
-                samesite="None",
-                max_age=access_max_age,
-                domain=None,  # Allow cookie on localhost
-                path="/",  # Make cookie available for all paths
-            )
+            response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None", max_age=access_max_age)
+            response.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="None", max_age=refresh_max_age)
 
-            response.set_cookie(
-                key="refresh_token",
-                value=refresh,
-                httponly=True,
-                secure=True,
-                samesite="None",
-                max_age=refresh_max_age,
-                domain=None,
-                path="/",
-            )
-
-            # Remove tokens from response body for security
             response.data = {
                 "message": "Login successful",
                 "user": data.get("user", {}),
             }
 
         return response
+
 
 class CookieTokenRefreshView(APIView):
     def post(self, request):
@@ -217,10 +212,14 @@ class LoginOtpView(APIView):
         try:
             user = User.objects.get(mobile_number=mobile_number)
         except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": f"User with mobile number {mobile_number} does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
-        otp = send_otp_sms(user)
-        return Response({"message": "OTP sent", "user_id": user.id})
+        if already_sent_otp(user):
+            otp = resend_otp_sms(user)
+            return Response({"message": f"OTP sent to {mobile_number}", "user_id": user.id})
+        else:
+            otp = send_otp_sms(user)
+            return Response({"message": f"OTP sent to {mobile_number}", "user_id": user.id})
 
 class VerifyOTPView(APIView):
     def post(self, request):
@@ -275,6 +274,6 @@ class VerifyOTPView(APIView):
                 return response
 
             else:
-                return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "Invalid OTP. Please try again"}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
