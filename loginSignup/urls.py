@@ -5,10 +5,13 @@ from . import views
 urlpatterns = [
     path("signup/", views.UserSignupView.as_view(), name="signup"),
     path("token/", views.CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("token/refresh/", views.CookieTokenRefreshView.as_view(), name="token_refresh"),
     path("login/", views.LoginOtpView.as_view(), name="login"),
     path("verify-otp/", views.VerifyOTPView.as_view(), name="verify-otp"),
     path("auth/google/callback/", GoogleLoginView.as_view(), name="google-login"),
     path('forgot-password/', views.forgot_password_send_otp),
     path('forgot-password/verify-otp/', views.forgot_password_verify_otp),
     path('forgot-password/reset-password/', views.forgot_password_reset),
+    path("logout/", views.LogoutView.as_view(), name="logout"),
+    path("change-password/", views.change_password, name="change-pass"),
 ]

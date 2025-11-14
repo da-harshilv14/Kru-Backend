@@ -15,6 +15,7 @@ import os
 from dotenv import load_dotenv
 import dj_database_url
 load_dotenv()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -54,7 +55,9 @@ INSTALLED_APPS = [
     'support',
     'photo',
     'cloudinary',
-    'cloudinary_storage'
+    'cloudinary_storage',
+    'SubsidyRecommandation',
+    'subsidy',
 ]
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -138,6 +141,18 @@ CSRF_TRUSTED_ORIGINS = os.environ.get(
 
 WSGI_APPLICATION = 'back.wsgi.application'
 
+# Cache configuration for faster responses
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+        'TIMEOUT': 300,  # 5 minutes default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
 
 # Database
 DATABASE_URL = os.getenv("DATABASE_URL")  # e.g. postgresql://user:pass@<neon-host>/<db>?sslmode=require

@@ -8,10 +8,30 @@ class GrievanceSerializer(serializers.ModelSerializer):
     attachment = serializers.FileField(required=False, write_only=True, allow_null=True)
     attachment_url = serializers.URLField(read_only=True)
 
+    # officer info
+    assigned_officer = serializers.CharField(source="assigned_officer.full_name", read_only=True)
+
+    # ✅ farmer details added here
+    farmer_name = serializers.CharField(source="user.full_name", read_only=True)
+    farmer_phone = serializers.CharField(source="user.phone", read_only=True)
+    farmer_email = serializers.CharField(source="user.email", read_only=True)
+
     class Meta:
         model = Grievance
-        fields = ['id', 'grievance_id', 'subject', 'description', 'preferred_contact', 'attachment', 'attachment_url', 'status', 'created_at']
-        read_only_fields = ['id', 'grievance_id', 'status', 'created_at', 'attachment_url']
+        fields = [
+            'id', 'grievance_id', 'subject', 'description', 'preferred_contact',
+            'attachment', 'attachment_url', 'status', 'assigned_officer',
+            'created_at', 'officer_remark',
+
+            # NEW FIELDS
+            'farmer_name', 'farmer_phone', 'farmer_email',
+        ]
+
+        read_only_fields = [
+            'id', 'grievance_id', 'status', 'created_at',
+            'assigned_officer', 'attachment_url', 'officer_remark',
+            'farmer_name', 'farmer_phone', 'farmer_email',   # ⬅ important
+        ]
 
     def create(self, validated_data):
         request = self.context.get('request')
@@ -34,7 +54,6 @@ class GrievanceSerializer(serializers.ModelSerializer):
                     grievance.attachment_url = secure_url
                     grievance.save()
             except Exception:
-                # swallow upload errors for now; in production surface an error
                 pass
 
         # generate grievance_id based on created pk and year

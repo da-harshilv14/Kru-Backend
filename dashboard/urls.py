@@ -1,11 +1,13 @@
 # app/urls.py
 from django.urls import path
-from .views import UserProfileView
+from .views import UserProfileView, UserPhotoView
 from django.conf import settings
 from django.conf.urls.static import static
 
+
 urlpatterns = [
     path("profile/", UserProfileView.as_view(), name="user-profile"),
+    path("user/photo/", UserPhotoView.as_view(), name="user-photo"),
 ]
 
 if settings.DEBUG:

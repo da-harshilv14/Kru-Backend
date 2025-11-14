@@ -1,32 +1,40 @@
-from rest_framework import generics
-from .models import User
-from django.http import HttpResponse
-from .serializers import UserSignupSerializer
+from rest_framework import generics, status
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework import status
-from django.contrib.auth import authenticate
-from .otp_utils import send_otp_sms, verify_otp_sms, already_sent_otp, resend_otp_sms
-from .auth_utils import login_with_otp_success
-from dotenv import load_dotenv, dotenv_values 
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from django.http import HttpResponse
+from django.contrib.auth import get_user_model
 from django.conf import settings
-import random
 from django.core.mail import send_mail
 from django.contrib.auth.hashers import make_password
-from django.contrib.auth import get_user_model
-from django.utils import timezone
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from .models import PasswordResetOTP 
-import os
+from .otp_utils import send_otp_sms, verify_otp_sms, already_sent_otp, resend_otp_sms
+from .serializers import UserSignupSerializer
+from .models import User, PasswordResetOTP
+import random
+
 otp = ""
 
 
 User = get_user_model()
+
+
+@api_view(["GET"])
+def test_email(request):
+    try:
+        send_mail(
+            subject="Test Email",
+            message="Hello, this is a test from Django using Brevo SMTP!",
+            from_email=settings.DEFAULT_FROM_EMAIL,  # uses DEFAULT_FROM_EMAIL
+            recipient_list=["harshilvasava8148@gmail.com"],
+        )
+        return Response({"message": "Email sent successfully"})
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
 
 @api_view(['POST'])
 def forgot_password_send_otp(request):
@@ -60,6 +68,7 @@ def forgot_password_send_otp(request):
     except Exception as e:
         return Response({"error": f"Error sending email: {e}"}, status=500) 
 
+
 @api_view(['POST'])
 def forgot_password_verify_otp(request):
     email = request.data.get('email')
@@ -80,6 +89,42 @@ def forgot_password_verify_otp(request):
         return HttpResponse("User not found.", status=404)
     except PasswordResetOTP.DoesNotExist:
         return HttpResponse("No OTP found for this user.", status=400)
+    
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """
+    Allows the logged-in user to change their password.
+    Expected fields: old_password, new_password, confirm_password
+    """
+    user = request.user
+    old_password = request.data.get('old_password')
+    new_password = request.data.get('new_password')
+    confirm_password = request.data.get('confirm_password')
+
+    # 🧩 Validation
+    if not old_password or not new_password or not confirm_password:
+        return Response(
+            {"error": "All fields (old_password, new_password, confirm_password) are required."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not user.check_password(old_password):
+        return Response({"error": "Old password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if new_password != confirm_password:
+        return Response({"error": "New passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if old_password == new_password:
+        return Response({"error": "New password cannot be same as old password."}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(new_password)
+    user.save()
+
+    return Response({"message": "Password changed successfully!"}, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 def forgot_password_reset(request):
     email = request.data.get('email')
@@ -106,6 +151,7 @@ class UserSignupView(generics.CreateAPIView):
     serializer_class = UserSignupSerializer
     permission_classes = []  
 
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -128,6 +174,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             }
         })
         return data
+
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
@@ -206,6 +253,7 @@ class CookieTokenRefreshView(APIView):
         except Exception:
             return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
 
+
 class LoginOtpView(APIView):
     def post(self, request):
         mobile_number = request.data.get("mobile_number")
@@ -220,6 +268,7 @@ class LoginOtpView(APIView):
         else:
             otp = send_otp_sms(user)
             return Response({"message": f"OTP sent to {mobile_number}", "user_id": user.id})
+
 
 class VerifyOTPView(APIView):
     def post(self, request):
@@ -277,3 +326,12 @@ class VerifyOTPView(APIView):
                 return Response({"error": "Invalid OTP. Please try again"}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        
+class LogoutView(APIView):
+    def post(self, request):
+        response = Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
+        # Delete both cookies
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        return response

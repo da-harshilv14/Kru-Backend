@@ -12,7 +12,6 @@ class CustomUserAdmin(UserAdmin):
     list_display = ("full_name", "email_address", "mobile_number", "role", "aadhaar_number", "is_staff", "is_active")
     list_filter = ("role", "is_staff", "is_active")
 
-    # Fieldsets (for editing users in admin)
     fieldsets = (
         (None, {"fields": ("email_address", "mobile_number", "password")}),
         ("Personal info", {"fields": ("full_name", "aadhaar_number", "role")}),

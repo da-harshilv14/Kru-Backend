@@ -14,7 +14,7 @@ def already_sent_otp(user):
 
 def send_otp_sms(user):
     client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-    otp = generate_otp()  # Implement your OTP generation logic here
+    otp = generate_otp() 
     number = str(user.mobile_number)
     message = client.messages.create(
         body=f"Your OTP is {otp}",

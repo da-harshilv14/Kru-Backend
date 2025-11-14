@@ -4,7 +4,7 @@ from .models import Grievance
 
 @admin.register(Grievance)
 class GrievanceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'grievance_id', 'subject', 'status', 'user', 'created_at')
+    list_display = ('id', 'grievance_id', 'subject', 'status', 'user', 'created_at', 'assigned_officer')
     list_filter = ('status', 'created_at')
     search_fields = ('grievance_id', 'subject', 'description', 'user__email')
     list_editable = ('status',)

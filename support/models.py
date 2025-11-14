@@ -17,6 +17,7 @@ class Grievance(models.Model):
 
     CONTACT_EMAIL = 'email'
     CONTACT_PHONE = 'phone'
+
     CONTACT_CHOICES = [
         (CONTACT_EMAIL, 'Email'),
         (CONTACT_PHONE, 'Phone'),
@@ -26,11 +27,18 @@ class Grievance(models.Model):
     grievance_id = models.CharField(max_length=32, unique=True, blank=True)
     subject = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    preferred_contact = models.CharField(max_length=10, choices=CONTACT_CHOICES, default=CONTACT_EMAIL)
-    # Store Cloudinary URL for uploaded attachment
+    preferred_contact = models.CharField(max_length=10, choices=CONTACT_CHOICES, default=CONTACT_EMAIL,blank=True,null=True)
     attachment_url = models.URLField(null=True, blank=True)
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
+    officer_remark = models.TextField(blank=True, null=True)
+    assigned_officer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="assigned_grievances",
+        limit_choices_to={"role": "officer"}
+    )
 
     class Meta:
         ordering = ['-created_at']
