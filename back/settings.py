@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'cloudinary_storage',
     'SubsidyRecommandation',
     'subsidy',
+    'anymail'
 ]
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -248,10 +249,10 @@ TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 SECURE_CROSS_ORIGIN_OPENER_POLICY = None
 
 # SendGrid Email settings
-EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-SENDGRID_SANDBOX_MODE_IN_DEBUG = False
-SENDGRID_ECHO_TO_STDOUT = True
+# EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
+# SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+# SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+# SENDGRID_ECHO_TO_STDOUT = True
 
 # Google SMTP settings (as a fallback or alternative)
 # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -259,9 +260,9 @@ SENDGRID_ECHO_TO_STDOUT = True
 # EMAIL_PORT = 587                               
 # EMAIL_USE_TLS = True  
 # EMAIL_USE_SSL = False                          
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')    
-# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER 
+# EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')    
+# # EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER 
 
 CORS_ALLOW_ALL_ORIGINS = True
 MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
@@ -313,3 +314,12 @@ if not DEBUG:
     # XSS & Clickjacking
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+
+#Email Provider
+EMAIL_BACKEND = "anymail.backends.sendinblue.EmailBackend"
+
+ANYMAIL = {
+    "SENDINBLUE_API_KEY": os.getenv("BREVO_API_KEY"),  # Your Brevo API key
+}
+
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL") 
