@@ -75,4 +75,4 @@ groq
 langchain-groq
 langchain-core
 langgraph
-anymail
+django-anymail
