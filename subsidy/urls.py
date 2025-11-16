@@ -11,7 +11,6 @@ urlpatterns = [
     path('officer/dashboard/', officer_dashboard),
     path('officer/review/<int:app_id>/', review_application),
 
-    path('assign/<int:app_id>/', assign_officer),
     path('officer/applications/<int:app_id>/', officer_application_detail),
     path('officer/applications/<int:app_id>/documents/', officer_application_documents),
     path('officer/applications/<int:app_id>/documents/verify/', officer_verify_documents),

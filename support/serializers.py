@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Grievance
 import cloudinary.uploader
+from .utils import get_best_officer   # <-- IMPORTANT
 
 
 class GrievanceSerializer(serializers.ModelSerializer):
@@ -11,7 +12,7 @@ class GrievanceSerializer(serializers.ModelSerializer):
     # officer info
     assigned_officer = serializers.CharField(source="assigned_officer.full_name", read_only=True)
 
-    # ✅ farmer details added here
+    # farmer info
     farmer_name = serializers.CharField(source="user.full_name", read_only=True)
     farmer_phone = serializers.CharField(source="user.phone", read_only=True)
     farmer_email = serializers.CharField(source="user.email", read_only=True)
@@ -30,36 +31,51 @@ class GrievanceSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'id', 'grievance_id', 'status', 'created_at',
             'assigned_officer', 'attachment_url', 'officer_remark',
-            'farmer_name', 'farmer_phone', 'farmer_email',   # ⬅ important
+            'farmer_name', 'farmer_phone', 'farmer_email',
         ]
 
     def create(self, validated_data):
         request = self.context.get('request')
         user = getattr(request, 'user', None)
+
+        # attach user (farmer)
         if user and user.is_authenticated:
             validated_data['user'] = user
 
-        # pop attachment from validated_data if present (it's write_only)
+        # extract attachment
         attachment_file = validated_data.pop('attachment', None)
 
-        # create the grievance record first
+        # 1️⃣ Create grievance first (needs ID later)
         grievance = Grievance.objects.create(**validated_data)
 
-        # if a file was uploaded, send to Cloudinary and store secure_url
+        # 2️⃣ Upload file to Cloudinary (optional)
         if attachment_file:
             try:
                 upload_result = cloudinary.uploader.upload(attachment_file)
                 secure_url = upload_result.get('secure_url')
                 if secure_url:
                     grievance.attachment_url = secure_url
-                    grievance.save()
+                    grievance.save(update_fields=["attachment_url"])
             except Exception:
                 pass
 
-        # generate grievance_id based on created pk and year
+        # 3️⃣ Generate grievance ID
         if not grievance.grievance_id:
             year = grievance.created_at.year
             grievance.grievance_id = f"GRV{year}{str(grievance.pk).zfill(4)}"
-            grievance.save()
+            grievance.save(update_fields=["grievance_id"])
+
+        # 4️⃣ AUTO-ASSIGN OFFICER USING LOAD BALANCER
+        best_officer = get_best_officer()
+
+        if best_officer:
+            grievance.assigned_officer = best_officer
+            grievance.status = "Under Review"
+            grievance.save(update_fields=["assigned_officer", "status"])
+        else:
+            # No officer available → keep Pending
+            grievance.status = "Pending"
+            grievance.save(update_fields=["status"])
 
         return grievance
+

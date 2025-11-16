@@ -51,30 +51,6 @@ class GrievanceDetailView(generics.RetrieveAPIView):
 
         return Grievance.objects.filter(user=user)
 
-class AssignGrievanceView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, pk):
-        if request.user.role != "admin":
-            return Response({"error": "Only admin can assign grievances"}, status=403)
-
-        officer_id = request.data.get("officer_id")
-
-        try:
-            officer = User.objects.get(id=officer_id, role="officer")
-        except User.DoesNotExist:
-            return Response({"error": "Invalid officer ID"}, status=400)
-
-        try:
-            grievance = Grievance.objects.get(pk=pk)
-        except Grievance.DoesNotExist:
-            return Response({"error": "Grievance not found"}, status=404)
-
-        grievance.assigned_officer = officer
-        grievance.status = "assigned"
-        grievance.save()
-
-        return Response({"success": "Grievance assigned successfully"})
 
 class UpdateGrievanceStatusView(APIView):
     permission_classes = [permissions.IsAuthenticated]

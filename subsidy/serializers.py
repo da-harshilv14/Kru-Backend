@@ -1,6 +1,11 @@
 from rest_framework import serializers
 from .models import SubsidyApplication, Document
 from app.models import Subsidy as AppSubsidy 
+from django.contrib.auth import get_user_model
+from .utils import get_best_officer
+
+User = get_user_model()
+
 
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -38,21 +43,23 @@ class SubsidyApplicationSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None)
         validated_data['user'] = user
 
-        app = SubsidyApplication(**validated_data)
-        app.save()
+        app = SubsidyApplication.objects.create(**validated_data)
 
         if doc_ids:
             docs = Document.objects.filter(id__in=doc_ids, owner=user)
             app.documents.set(docs)
 
+        best_officer = get_best_officer()
+        if best_officer:
+            app.assigned_officer = best_officer
+            app.status = "Under Review"
+            app.save()
+        else:
+            # No officer available → keep pending
+            app.status = "Pending"
+            app.save()
+
         return app
-
-from rest_framework import serializers
-from .models import SubsidyApplication
-from app.models import Subsidy
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
 
 class OfficerSubsidyApplicationSerializer(serializers.ModelSerializer):
     subsidy_name = serializers.CharField(source='subsidy.title', read_only=True)
