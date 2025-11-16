@@ -39,7 +39,8 @@ class GoogleLoginView(APIView):
             return Response({
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
-                "user": {"email": email_address, "name": user.full_name}
+                "user": {"email": email_address, "name": user.full_name},
+                "role": user.role,
             })
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
