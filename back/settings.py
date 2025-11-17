@@ -58,7 +58,8 @@ INSTALLED_APPS = [
     'cloudinary_storage',
     'SubsidyRecommandation',
     'subsidy',
-    'anymail'
+    'anymail',
+    'news_post'
 ]
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
