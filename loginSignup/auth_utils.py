@@ -23,24 +23,63 @@ User = get_user_model()
 
 class GoogleLoginView(APIView):
     def post(self, request):
-        load_dotenv()
-        api_key = os.getenv("GOOGLE_CLIENT_ID")
         token = request.data.get("token")
-        print(token)
+
         try:
-            idinfo = id_token.verify_oauth2_token(token, requests.Request(),api_key)
+            # Verify Google token
+            idinfo = id_token.verify_oauth2_token(
+                token,
+                requests.Request(),
+                os.getenv("GOOGLE_CLIENT_ID")
+            )
 
-            email_address = idinfo["email"]
-            full_name = idinfo.get("name", "")
-            
-            user= User.objects.get(email_address=email_address)
+            email = idinfo.get("email")
+            name = idinfo.get("name", "")
 
+            user, created = User.objects.get_or_create(
+                email_address=email,
+                defaults={"full_name": name}
+            )
+
+            # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
-            return Response({
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-                "user": {"email": email_address, "name": user.full_name},
-                "role": user.role,
-            })
+            access = str(refresh.access_token)
+            refresh_token = str(refresh)
+
+            # Cookie expiry times
+            access_max_age = 300
+            refresh_max_age = 7 * 24 * 60 * 60
+
+            # Create response
+            response = Response({
+                "message": "Login successful",
+                "user": {
+                    "email": email,
+                    "full_name": user.full_name,
+                    "role": user.role
+                }
+            }, status=status.HTTP_200_OK)
+
+            # 🔥 Set cookies like normal login
+            response.set_cookie(
+                key="access_token",
+                value=access,
+                httponly=True,
+                secure=True,
+                samesite="None",
+                max_age=access_max_age,
+            )
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_token,
+                httponly=True,
+                secure=True,
+                samesite="None",
+                max_age=refresh_max_age,
+            )
+
+            return response
+
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+

@@ -4,6 +4,7 @@ from phonenumber_field.modelfields import PhoneNumberField
 from django.db.models import Q, UniqueConstraint
 from django.conf import settings
 
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, full_name, mobile_number, email_address, password=None, aadhaar_number=None, role="farmer"):
         if not mobile_number or not email_address:
@@ -64,8 +65,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.full_name
-from django.db import models
-from django.conf import settings
 
 class PasswordResetOTP(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
@@ -74,3 +73,34 @@ class PasswordResetOTP(models.Model):
 
     def __str__(self):
         return f'{self.user.email} - {self.otp}'
+    
+
+class EmailVerification(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    token = models.CharField(max_length=255)
+    is_verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class MobileVerification(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    is_verified = models.BooleanField(default=False)
+    otp = models.CharField(max_length=6, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class OTP(models.Model):
+    PURPOSES = [
+        ("email_verify", "Email Verification"),
+        ("mobile_verify", "Mobile Verification"),
+        ("login", "Login"),
+        ("forgot_password", "Forgot Password"),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    otp = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=20, choices=PURPOSES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempts = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.user.email_address} - {self.purpose} - {self.otp}"

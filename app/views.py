@@ -1,18 +1,20 @@
 from django.shortcuts import render
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-import sys
-import os
 from SubsidyRecommandation import SubsidyRecommander
-
-# Add SubsidyRecommandation to path
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'SubsidyRecommandation'))
-
 from .models import Subsidy, SubsidyRating
 from .serializers import SubsidySerializer, SubsidyRatingSerializer
 from .permissions import IsSubsidyProviderOrAdmin 
+from notifications.utils import notify_user
+from loginSignup.models import User
+from notifications.models import Notification
+from django.utils import timezone
+import sys
+import os
+
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'SubsidyRecommandation'))
 
 
 def index(request):
@@ -36,7 +38,28 @@ class SubsidyViewSet(viewsets.ModelViewSet):
 
     # 🔹 Auto-assign creator
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
+        subsidy = serializer.save(created_by=self.request.user)
+
+        # Efficient bulk creation of Notification rows
+        farmers = User.objects.filter(role="farmer", is_active=True).only("id")
+        now = timezone.now()
+
+        notifications = []
+        for farmer in farmers:
+            notifications.append(
+                Notification(
+                    receiver_id=farmer.id,
+                    receiver_role="farmer",
+                    notif_type="subsidy",
+                    subject="🎉 New Opportunity: Subsidy Launched!",
+                    message=f"💰 Great News! A new subsidy, '{subsidy.title}', is now available to support your farming. Check your eligibility and apply today to benefit from this scheme!",
+                    created_at=now
+                )
+            )
+
+        # Bulk insert (fast)
+        if notifications:
+            Notification.objects.bulk_create(notifications)
 
     # 🔹 RATE subsidy
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])

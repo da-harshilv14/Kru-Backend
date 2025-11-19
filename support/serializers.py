@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Grievance
 import cloudinary.uploader
 from .utils import get_best_officer   # <-- IMPORTANT
+from notifications.utils import notify_user
 
 
 class GrievanceSerializer(serializers.ModelSerializer):
@@ -76,6 +77,23 @@ class GrievanceSerializer(serializers.ModelSerializer):
             # No officer available → keep Pending
             grievance.status = "Pending"
             grievance.save(update_fields=["status"])
+
+        # ⭐⭐⭐ NOTIFICATION — Farmer submitted grievance
+        notify_user(
+            user=user,
+            notif_type="grievance",
+            subject="📬 Grievance Submitted Successfully!",
+            message=f"🌱 Thank you! Your grievance about '{grievance.subject}' has been received. Your tracking ID is {grievance.grievance_id}. We'll start working on it right away!"
+        )
+
+        # ⭐⭐⭐ NOTIFICATION — Officer gets assigned grievance
+        if best_officer:
+            notify_user(
+                user=best_officer,
+                notif_type="grievance",
+                subject="🚨 Action Required: New Grievance Assignment",
+                message=f"🔔 You have been assigned a New Grievance (ID: {grievance.grievance_id}) for immediate review. Topic: '{grievance.subject}'. Please check the details and begin processing."
+            )
 
         return grievance
 

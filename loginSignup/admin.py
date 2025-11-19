@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User
+from .models import User, OTP
 from .forms import UserCreationFormm, UserChangeFormm
 
 
@@ -29,3 +29,18 @@ class CustomUserAdmin(UserAdmin):
 
 
 admin.site.register(User, CustomUserAdmin)
+
+@admin.register(OTP)
+class OTPAdmin(admin.ModelAdmin):
+    list_display = ("id", "user_email", "user_id_display", "otp", "purpose", "attempts", "created_at")
+    list_filter = ("purpose", "created_at")
+    search_fields = ("otp", "user__email_address", "user__mobile_number", "user__id")
+    ordering = ("-created_at",)
+
+    def user_email(self, obj):
+        return obj.user.email_address
+    user_email.short_description = "User Email"
+
+    def user_id_display(self, obj):
+        return obj.user.id
+    user_id_display.short_description = "User ID"

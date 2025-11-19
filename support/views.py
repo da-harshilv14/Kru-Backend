@@ -7,6 +7,8 @@ from loginSignup.models import User
 from rest_framework.permissions import IsAuthenticated
 from .models import Grievance
 from .serializers import GrievanceSerializer
+from notifications.utils import notify_user
+
 
 
 class GrievanceListCreateView(generics.ListCreateAPIView):
@@ -100,8 +102,33 @@ class OfficerUpdateGrievanceStatusView(APIView):
             return Response({"error": "Invalid status"}, status=400)
 
         grievance.status = new_status
-        grievance.officer_remark = remark    # SAVE REMARK
+        grievance.officer_remark = remark
         grievance.save()
+
+        # 🔥🔥 NOTIFICATION — Notify Farmer about status update
+        if new_status == "Approved":
+            notify_user(
+                user=grievance.user,
+                notif_type="grievance",
+                subject="✅ Grievance Approved!",
+                message=f"🎉 Great news! Your grievance '{grievance.subject}' has been approved. Remark: {remark}"
+            )
+
+        elif new_status == "Rejected":
+            notify_user(
+                user=grievance.user,
+                notif_type="grievance",
+                subject="❌ Grievance Rejected",
+                message=f"⚠️ Update: Your grievance '{grievance.subject}' has been rejected. Please review the reason. Remark: {remark}"
+            )
+
+        elif new_status == "Under Review":
+            notify_user(
+                user=grievance.user,
+                notif_type="grievance",
+                subject="⏳ Grievance Under Review",
+                message=f"👀 Your grievance '{grievance.subject}' is now Under Review by Officer {user.full_name}. We'll keep you posted!"
+            )
 
         return Response({
             "success": "Status updated",
@@ -109,6 +136,7 @@ class OfficerUpdateGrievanceStatusView(APIView):
             "status": grievance.status,
             "remark": grievance.officer_remark
         })
+
 
 class OfficerAssignedGrievancesView(APIView):
     permission_classes = [IsAuthenticated]

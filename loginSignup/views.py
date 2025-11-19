@@ -6,35 +6,20 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from django.http import HttpResponse
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
 from django.conf import settings
 from django.core.mail import send_mail
-from django.contrib.auth.hashers import make_password
-from .otp_utils import send_otp_sms, verify_otp_sms, already_sent_otp, resend_otp_sms
+
+from .otp_utils import send_otp, verify_otp
 from .serializers import UserSignupSerializer
-from .models import User, PasswordResetOTP
-import random
-
-otp = ""
-
 
 User = get_user_model()
 
 
-@api_view(["GET"])
-def test_email(request):
-    try:
-        send_mail(
-            subject="Test Email",
-            message="Hello, this is a test from Django using Brevo SMTP!",
-            from_email=settings.DEFAULT_FROM_EMAIL,  # uses DEFAULT_FROM_EMAIL
-            recipient_list=["harshilvasava8148@gmail.com"],
-        )
-        return Response({"message": "Email sent successfully"})
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
-
+# --------------------------------------------------------------------
+# Forgot Password - Send OTP (Email)
+# --------------------------------------------------------------------
 
 @api_view(['POST'])
 def forgot_password_send_otp(request):
@@ -47,27 +32,15 @@ def forgot_password_send_otp(request):
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=404)
 
-    otp = str(random.randint(100000, 999999))
-    PasswordResetOTP.objects.update_or_create(
-        user=user,
-        defaults={"otp": otp}
-    )
+    # IMPORTANT CHANGE ↓↓↓
+    send_otp(user, "reset_password")
 
-    subject = "E-mail verification"
-    message = f'Your OTP is {otp}, please do not share it with anyone'
+    return Response({"success": "OTP sent to your email."})
 
-    try:
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False
-        )
-        return Response({"success": "Email sent successfully!"})
-    except Exception as e:
-        return Response({"error": f"Error sending email: {e}"}, status=500) 
 
+# --------------------------------------------------------------------
+# Forgot Password - Verify OTP
+# --------------------------------------------------------------------
 
 @api_view(['POST'])
 def forgot_password_verify_otp(request):
@@ -75,55 +48,23 @@ def forgot_password_verify_otp(request):
     otp = request.data.get('otp')
 
     if not email or not otp:
-        return HttpResponse("Email and OTP required.", status=400)
+        return Response({"error": "Email and OTP required"}, status=400)
 
     try:
         user = User.objects.get(email_address=email)
-        otp_obj = PasswordResetOTP.objects.get(user=user)
-
-        if otp_obj.otp != otp:
-            return HttpResponse("Invalid OTP.", status=400)
-
-        return HttpResponse("OTP verified successfully.")
     except User.DoesNotExist:
-        return HttpResponse("User not found.", status=404)
-    except PasswordResetOTP.DoesNotExist:
-        return HttpResponse("No OTP found for this user.", status=400)
-    
+        return Response({"error": "User not found"}, status=404)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def change_password(request):
-    """
-    Allows the logged-in user to change their password.
-    Expected fields: old_password, new_password, confirm_password
-    """
-    user = request.user
-    old_password = request.data.get('old_password')
-    new_password = request.data.get('new_password')
-    confirm_password = request.data.get('confirm_password')
+    success, msg = verify_otp(user, "forgot_password", otp)
+    if not success:
+        return Response({"error": msg}, status=400)
 
-    # 🧩 Validation
-    if not old_password or not new_password or not confirm_password:
-        return Response(
-            {"error": "All fields (old_password, new_password, confirm_password) are required."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    return Response({"message": "OTP verified successfully"})
 
-    if not user.check_password(old_password):
-        return Response({"error": "Old password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
 
-    if new_password != confirm_password:
-        return Response({"error": "New passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
-
-    if old_password == new_password:
-        return Response({"error": "New password cannot be same as old password."}, status=status.HTTP_400_BAD_REQUEST)
-
-    user.set_password(new_password)
-    user.save()
-
-    return Response({"message": "Password changed successfully!"}, status=status.HTTP_200_OK)
-
+# --------------------------------------------------------------------
+# Forgot Password – Reset
+# --------------------------------------------------------------------
 
 @api_view(['POST'])
 def forgot_password_reset(request):
@@ -131,33 +72,124 @@ def forgot_password_reset(request):
     new_password = request.data.get('new_password')
 
     if not email or not new_password:
-        return Response({'error': 'Email and new password required.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Email and new password required"}, status=400)
 
     try:
         user = User.objects.get(email_address=email)
     except User.DoesNotExist:
-        return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"error": "User not found"}, status=404)
 
     user.password = make_password(new_password)
     user.save()
 
-    PasswordResetOTP.objects.filter(user=user).delete()
+    return Response({"message": "Password reset successful"})
 
-    return Response({'message': 'Password reset successful.'}, status=status.HTTP_200_OK)
 
+# --------------------------------------------------------------------
+# Change Password (Authenticated)
+# --------------------------------------------------------------------
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    user = request.user
+    old_password = request.data.get('old_password')
+    new_password = request.data.get('new_password')
+    confirm_password = request.data.get('confirm_password')
+
+    if not old_password or not new_password or not confirm_password:
+        return Response({"error": "All fields are required."}, status=400)
+
+    if not user.check_password(old_password):
+        return Response({"error": "Old password is incorrect."}, status=400)
+
+    if new_password != confirm_password:
+        return Response({"error": "New passwords do not match."}, status=400)
+
+    if old_password == new_password:
+        return Response({"error": "New password cannot be same as old password."}, status=400)
+
+    user.set_password(new_password)
+    user.save()
+
+    return Response({"message": "Password changed successfully!"})
+
+
+# --------------------------------------------------------------------
+# Signup – Step 1 (Send email OTP)
+# --------------------------------------------------------------------
 
 class UserSignupView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSignupSerializer
-    permission_classes = []  
+    permission_classes = []
 
+    def create(self, request, *args, **kwargs):
+        password = request.data.get("password")
+        confirm = request.data.get("confirm_password")
+
+        if password != confirm:
+            return Response({"error": "Passwords do not match"}, status=400)
+
+        email = request.data.get("email_address")
+        mobile = request.data.get("mobile_number")
+
+        # ---------------------------------------------
+        # 1️⃣ Check if user already exists
+        # ---------------------------------------------
+        existing_user = User.objects.filter(email_address=email).first()
+
+        if existing_user:
+            if existing_user.is_active:
+                # User already fully registered
+                return Response(
+                    {"error": "Account already exists. Please log in."},
+                    status=400
+                )
+
+            # ---------------------------------------------
+            # 2️⃣ User exists but NOT ACTIVE → resend OTP
+            # ---------------------------------------------
+            # Update user fields (in case user changed name/mobile)
+            existing_user.full_name = request.data.get("full_name")
+            existing_user.mobile_number = mobile
+            existing_user.set_password(password)
+            existing_user.save()
+
+            send_otp(existing_user, "email_verify")
+
+            return Response({
+                "message": "Account already exists but is not verified. OTP re-sent to email.",
+                "user_id": existing_user.id
+            }, status=200)
+
+        # ---------------------------------------------
+        # 3️⃣ No user → Create new one
+        # ---------------------------------------------
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        user.is_active = False
+        user.save()
+
+        send_otp(user, "email_verify")
+
+        return Response({
+            "message": "Signup successful. Verify your email using the OTP sent to you.",
+            "user_id": user.id
+        }, status=201)
+
+
+
+# --------------------------------------------------------------------
+# JWT Login With Email + Password
+# --------------------------------------------------------------------
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-
-        # extra fields you want in response
         token["full_name"] = user.full_name
         token["email_address"] = user.email_address
         token["role"] = user.role
@@ -188,150 +220,216 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         if not email or not password or not role:
             return Response({"error": "Email, password and role are required"}, status=400)
 
-        # Check email exists
         try:
             user = User.objects.get(email_address=email)
         except User.DoesNotExist:
             return Response({"error": "Email not registered"}, status=404)
 
-       
-        # Check role
         if user.role != role.lower():
             return Response({"error": "Role does not match this email"}, status=400)
 
-        # Check password
         if not user.check_password(password):
-            return Response({"error": "Incorrect password. Please try again."}, status=400)
+            return Response({"error": "Incorrect password"}, status=400)
 
-        # now call parent to generate tokens
         response = super().post(request, *args, **kwargs)
 
         if response.status_code == 200:
-            data = response.data
-            refresh = data.get("refresh")
-            access = data.get("access")
+            tokens = response.data
+            refresh = tokens.get("refresh")
+            access = tokens.get("access")
 
-            access_max_age = 300   # default 5 mins
-            refresh_max_age = 7*24*60*60
+            access_age = 300
+            refresh_age = 7 * 24 * 3600
 
             if remember_me:
-                access_max_age = 86400
-                refresh_max_age = 30*24*60*60
+                access_age = 86400
+                refresh_age = 30 * 24 * 3600
 
-            response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None", max_age=access_max_age)
-            response.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="None", max_age=refresh_max_age)
+            response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None", max_age=access_age)
+            response.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="None", max_age=refresh_age)
 
             response.data = {
                 "message": "Login successful",
-                "user": data.get("user", {}),
+                "user": tokens.get("user", {})
             }
 
         return response
 
 
+# --------------------------------------------------------------------
+# Refresh token using cookies
+# --------------------------------------------------------------------
+
 class CookieTokenRefreshView(APIView):
     def post(self, request):
         refresh_token = request.COOKIES.get("refresh_token")
-        if refresh_token is None:
-            return Response({"error": "No refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+        if not refresh_token:
+            return Response({"error": "No refresh token"}, status=401)
 
         try:
             refresh = RefreshToken(refresh_token)
             access = str(refresh.access_token)
 
-            response = Response({"message": "Token refreshed"}, status=status.HTTP_200_OK)
-            response.set_cookie(
-                key="access_token",
-                value=access,
-                httponly=True,
-                secure=True,
-                samesite="None",
-                max_age=300,   
-            )
+            response = Response({"message": "Token refreshed"})
+            response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None", max_age=300)
             return response
+        except:
+            return Response({"error": "Invalid refresh token"}, status=401)
 
-        except Exception:
-            return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
 
+# --------------------------------------------------------------------
+# Login With Mobile OTP (Step 1)
+# --------------------------------------------------------------------
 
 class LoginOtpView(APIView):
     def post(self, request):
-        mobile_number = request.data.get("mobile_number")
+        mobile = request.data.get("mobile_number")
+
         try:
-            user = User.objects.get(mobile_number=mobile_number)
+            user = User.objects.get(mobile_number=mobile)
         except User.DoesNotExist:
-            return Response({"error": f"User with mobile number {mobile_number} does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "User not found"}, status=404)
 
-        if already_sent_otp(user):
-            otp = resend_otp_sms(user)
-            return Response({"message": f"OTP sent to {mobile_number}", "user_id": user.id})
-        else:
-            otp = send_otp_sms(user)
-            return Response({"message": f"OTP sent to {mobile_number}", "user_id": user.id})
+        send_otp(user, "login")
 
+        return Response({"message": "OTP sent", "user_id": user.id})
+
+
+# --------------------------------------------------------------------
+# Login With Mobile OTP – Verify (Step 2)
+# --------------------------------------------------------------------
 
 class VerifyOTPView(APIView):
     def post(self, request):
         user_id = request.data.get("user_id")
-        token = request.data.get("otp")
-        remember = request.data.get("remember", False)  # new
+        otp = request.data.get("otp")
+        remember = request.data.get("remember", False)
 
         try:
             user = User.objects.get(id=user_id)
-            if verify_otp_sms(user, token):
-                # Generate JWT tokens
-                refresh = RefreshToken.for_user(user)
-                access = str(refresh.access_token)
-                refresh_token = str(refresh)
-
-                # Set token lifetimes
-                access_max_age = 300  # 5 minutes
-                refresh_max_age = 7*24*60*60  # 7 days
-
-                if remember:
-                    access_max_age = 60*60*24  # 1 day
-                    refresh_max_age = 30*24*60*60  # 30 days
-
-                response = Response({
-                    'message': 'Login successful',
-                    'user': {
-                        'id': user.id,
-                        'email': user.email_address,
-                        'full_name': user.full_name,
-                        'role': user.role
-                    }
-                }, status=status.HTTP_200_OK)
-                
-                # Set cookies with proper settings
-                response.set_cookie(
-                    'access_token',
-                    access,
-                    httponly=True,
-                    secure=True,  # Set to True in production with HTTPS
-                    samesite="None",
-                    max_age=access_max_age,
-                )
-                response.set_cookie(
-                    'refresh_token',
-                    refresh_token,
-                    httponly=True,
-                    secure=True,
-                    samesite="None",
-                    max_age=refresh_max_age,
-                )
-
-                return response
-
-            else:
-                return Response({"error": "Invalid OTP. Please try again"}, status=status.HTTP_400_BAD_REQUEST)
         except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "User not found"}, status=404)
 
-        
+        success, msg = verify_otp(user, "login", otp)
+        if not success:
+            return Response({"error": msg}, status=400)
+
+        refresh = RefreshToken.for_user(user)
+        access = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        access_age = 300
+        refresh_age = 7 * 24 * 3600
+
+        if remember:
+            access_age = 86400
+            refresh_age = 30 * 24 * 3600
+
+        response = Response({
+            "message": "Login successful",
+            "user": {
+                "id": user.id,
+                "email": user.email_address,
+                "full_name": user.full_name,
+                "role": user.role
+            }
+        })
+
+        response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None", max_age=access_age)
+        response.set_cookie("refresh_token", refresh_token, httponly=True, secure=True, samesite="None", max_age=refresh_age)
+
+        return response
+
+
+# --------------------------------------------------------------------
+# Logout
+# --------------------------------------------------------------------
+
 class LogoutView(APIView):
     def post(self, request):
-        response = Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
-        # Delete both cookies
+        response = Response({"message": "Logged out successfully"})
         response.delete_cookie("access_token")
         response.delete_cookie("refresh_token")
         return response
+
+
+# --------------------------------------------------------------------
+# Signup – Step 2 (Email OTP verification → send mobile OTP)
+# --------------------------------------------------------------------
+
+@api_view(['POST'])
+def verify_email(request):
+    email = request.data.get("email_address")
+    otp = request.data.get("otp")
+
+    if not email or not otp:
+        return Response({"error": "Email and OTP required"}, status=400)
+
+    try:
+        user = User.objects.get(email_address=email)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)
+
+    success, msg = verify_otp(user, "email_verify", otp)
+    if not success:
+        return Response({"error": msg}, status=400)
+
+    send_otp(user, "mobile_verify")
+
+    return Response({"message": "Email verified. OTP sent to your mobile.", "user_id": user.id})
+
+
+# --------------------------------------------------------------------
+# Signup – Step 3 (Mobile OTP verification → activate)
+# --------------------------------------------------------------------
+
+@api_view(['POST'])
+def verify_mobile_otp(request):
+    user_id = request.data.get("user_id")
+    otp = request.data.get("otp")
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)
+
+    success, msg = verify_otp(user, "mobile_verify", otp)
+    if not success:
+        return Response({"error": msg}, status=400)
+
+    user.is_active = True
+    user.save()
+
+    return Response({"message": "Registration completed successfully. You can now login."})
+
+
+@api_view(['POST'])
+def resend_email_otp(request):
+    email = request.data.get("email_address")
+
+    if not email:
+        return Response({"error": "Email required"}, status=400)
+
+    try:
+        user = User.objects.get(email_address=email)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)
+
+    send_otp(user, "email_verify")
+
+    return Response({"message": "Email OTP resent successfully"})
+
+@api_view(['POST'])
+def resend_mobile_otp(request):
+    user_id = request.data.get("user_id")
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)
+
+    send_otp(user, "mobile_verify")
+
+    return Response({"message": "Mobile OTP resent successfully"})
+
+
