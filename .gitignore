@@ -38,3 +38,4 @@ Thumbs.db
 *.cover
 htmlcov/
 .pytest_cache/
+.early.coverage

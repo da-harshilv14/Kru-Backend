@@ -76,3 +76,4 @@ langchain-groq
 langchain-core
 langgraph
 django-anymail
+pytest

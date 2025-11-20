@@ -72,7 +72,7 @@ def send_otp(user, purpose):
             "heading": "Verify Your Email",
             "description": f"We received a request to verify the email {user_email}."
         },
-        "reset_password": {
+        "forgot_password": {
             "subject": f"{APP_NAME} - Reset Password OTP",
             "heading": "Reset Your Password",
             "description": f"We received a request to reset your password for {user_email}."
