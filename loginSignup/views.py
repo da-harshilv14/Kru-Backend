@@ -257,7 +257,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
             response.data = {
                 "message": "Login successful",
-                "user": tokens.get("user", {})
+                "user": tokens.get("user", {}),
+                "access": access,
+                "refresh": refresh
             }
 
         return response
