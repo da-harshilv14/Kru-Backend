@@ -1,7 +1,10 @@
 from django.db import models
 from django.conf import settings
 from cloudinary.models import CloudinaryField
-
+from django.db import transaction
+from django.db.models import Max
+import random
+import ulid
 class Document(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -21,6 +24,7 @@ class Document(models.Model):
 
 
 class SubsidyApplication(models.Model):
+    application_id = models.CharField(max_length=26, unique=True, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -38,9 +42,6 @@ class SubsidyApplication(models.Model):
     default='Pending'
 )
 
-    
-    application_id = models.PositiveIntegerField(unique=True, editable=False)
-
     full_name = models.CharField(max_length=255)
     mobile = models.CharField(max_length=20)
     email = models.CharField(max_length=255)
@@ -55,7 +56,6 @@ class SubsidyApplication(models.Model):
     land_unit = models.CharField(max_length=50)
     soil_type = models.CharField(max_length=50)
     ownership = models.CharField(max_length=50)
-
     bank_name = models.CharField(max_length=255)
     account_number = models.CharField(max_length=50)
     ifsc = models.CharField(max_length=20)
@@ -81,6 +81,7 @@ class SubsidyApplication(models.Model):
         ('Approved', 'Approved'),
         ('Under Review', 'Under Review'),
         ('Rejected', 'Rejected'),
+        ('Payment done','Payment done')
     ]
 
 
@@ -95,10 +96,13 @@ class SubsidyApplication(models.Model):
         unique_together = ('user', 'subsidy')
 
     def save(self, *args, **kwargs):
-        if not self.application_id:
-            last = SubsidyApplication.objects.order_by('-application_id').first()
-            self.application_id = (int(last.application_id) + 1) if last else 1
+        if self._state.adding and not self.application_id:
+            self.application_id = str(ulid.new())  
         super().save(*args, **kwargs)
+
+     
+
 
     def __str__(self):
         return f"{self.user.full_name} - {self.subsidy.title}"
+    

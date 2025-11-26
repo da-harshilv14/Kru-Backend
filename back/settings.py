@@ -60,7 +60,8 @@ INSTALLED_APPS = [
     'subsidy',
     'anymail',
     'news_post',
-    'notifications'
+    'notifications',
+    'subsidy_provider'
 ]
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (

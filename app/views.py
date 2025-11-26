@@ -7,14 +7,24 @@ from SubsidyRecommandation import SubsidyRecommander
 from .models import Subsidy, SubsidyRating
 from .serializers import SubsidySerializer, SubsidyRatingSerializer
 from .permissions import IsSubsidyProviderOrAdmin 
+from rest_framework.pagination import PageNumberPagination
+
 from notifications.utils import notify_user
 from loginSignup.models import User
+# only needed for bulk option:
 from notifications.models import Notification
 from django.utils import timezone
 import sys
 import os
-
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'SubsidyRecommandation'))
+
+
+class SubsidyPagination(PageNumberPagination):
+    page_size = 10                     # Return 10 per page
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
 
 
 def index(request):
@@ -27,6 +37,20 @@ class SubsidyViewSet(viewsets.ModelViewSet):
     """
     queryset = Subsidy.objects.all().order_by('-created_at')
     serializer_class = SubsidySerializer
+    pagination_class = SubsidyPagination
+
+    def list(self, request, *args, **kwargs):
+        """Paginated list of subsidies."""
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        # fallback (not paginated)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     # 🔹 PERMISSIONS HANDLING
     def get_permissions(self):
@@ -60,6 +84,8 @@ class SubsidyViewSet(viewsets.ModelViewSet):
         # Bulk insert (fast)
         if notifications:
             Notification.objects.bulk_create(notifications)
+
+
 
     # 🔹 RATE subsidy
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])

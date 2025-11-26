@@ -18,10 +18,10 @@ class Subsidy(models.Model):
     rating = models.FloatField(default=0, validators=[MinValueValidator(0), MaxValueValidator(5)], help_text="Average rating from 0 to 5 stars")
 
     def update_average_rating(self):
-        """Recalculate and update the average rating."""
-        avg = self.ratings.aggregate(Avg('rating'))['rating__avg'] or 0
-        self.rating = round(avg, 1)
-        self.save(update_fields=['rating'])
+        """Recalculate and store the average rating for this subsidy."""
+        avg = self.ratings.aggregate(avg_rating=Avg("rating"))["avg_rating"]
+        self.rating = round(avg or 0.0, 1)
+        self.save(update_fields=["rating"])
 
     def __str__(self):
         return f"{self.title} ({self.rating}⭐)"

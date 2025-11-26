@@ -7,10 +7,83 @@ from .serializers import SubsidyApplicationSerializer, DocumentSerializer, Offic
 from .models import SubsidyApplication, Document
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from notifications.utils import notify_user
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.db import transaction
 
 User = get_user_model()
+from .models import SubsidyApplication
+from .serializers import SubsidyApplicationSerializer
 
+class SubsidyApplicationViewSet(viewsets.ModelViewSet):
+    """
+    CRUD viewset for SubsidyApplication.
+    Adds a custom action `mark_payment_done` to transition Approved -> Payment done.
+    """
+    queryset = SubsidyApplication.objects.all().select_related("subsidy", "user")
+    serializer_class = SubsidyApplicationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Optionally filter so providers only see their subsidy applications.
+        Adjust logic if providers are staff or another model.
+        """
+        qs = super().get_queryset()
+        user = self.request.user
+
+        # If provider users should only see applications for subsidies they own,
+        # uncomment following lines and adjust attribute name as needed:
+        # owned_subsidy_pk_list = []
+        # for s in Subsidy.objects.filter(provider=user).values_list('pk', flat=True):
+        #     owned_subsidy_pk_list.append(s)
+        # qs = qs.filter(subsidy__in=owned_subsidy_pk_list)
+
+        return qs
+
+    @action(detail=True, methods=["post"], url_path="mark_payment_done")
+    def mark_payment_done(self, request, pk=None):
+        """
+        POST /api/applications/<pk>/mark_payment_done/
+        Only the subsidy provider (owner) may perform this. Allowed transition: Approved -> Payment done
+        """
+        app = self.get_object()
+
+        # Determine subsidy owner/provider by trying common attribute names
+        subsidy = getattr(app, "subsidy", None)
+        provider_user = None
+        if subsidy is not None:
+            provider_user = getattr(subsidy, "provider", None) \
+                            or getattr(subsidy, "owner", None) \
+                            or getattr(subsidy, "created_by", None) \
+                            or getattr(subsidy, "user", None)
+
+        # Check provider authorization
+        if provider_user is None:
+            return Response({"detail": "Subsidy owner not configured on backend."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if provider_user != request.user and not request.user.is_staff:
+            return Response({"detail": "Not allowed. Only subsidy provider or staff can mark payment."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        # Normalize status check and only allow Approved -> Payment done
+        current_status = (app.status or "").strip().lower()
+        if current_status != "approved":
+            return Response({"detail": f"Invalid status transition: current status = '{app.status}'."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Perform update in a transaction (atomic)
+        with transaction.atomic():
+            app.status = "Payment done"   # EXACT string as in your model choice
+            app.save(update_fields=["status"])
+
+            # Optionally: record an audit log in a separate model, or set reviewed_at etc.
+            # e.g. app.reviewed_at = timezone.now(); app.save(update_fields=["status", "reviewed_at"])
+
+        serializer = self.get_serializer(app)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 # Upload single document (multipart/form-data)
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
@@ -67,14 +140,6 @@ def apply_subsidy(request):
 
     if serializer.is_valid():
         app = serializer.save()
-
-        notify_user(
-            user=request.user,
-            notif_type="application",
-            subject="Subsidy Application Submitted",
-            message=f"Your application for '{app.subsidy.title}' has been submitted successfully."
-        )
-        
         return Response(
             {"message": "Application submitted", "application_id": app.application_id},
             status=201
@@ -101,27 +166,10 @@ def assign_officer(request, app_id):
         return Response({"detail": "Invalid officer"}, status=400)
 
     app.assigned_officer = officer
-    app.status = "Pending"
+    app.status = "Under Review"
     app.save()
 
-    # 🔥 Notify the officer that a new application was assigned
-    notify_user(
-        user=officer,
-        notif_type="application",
-        subject="New Application Assigned",
-        message=f"A new subsidy application (ID: {app.application_id}) has been assigned to you."
-    )
-
-    # 🔥 Notify the farmer also (optional but recommended)
-    notify_user(
-        user=app.user,
-        notif_type="application",
-        subject="Officer Assigned",
-        message=f"Your application for '{app.subsidy.title}' has been assigned to Officer {officer.full_name}."
-    )
-
     return Response({"message": "Officer assigned successfully"}, status=200)
-
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -154,53 +202,12 @@ def review_application(request, app_id):
     serializer = OfficerReviewSerializer(app, data=request.data, partial=True)
 
     if serializer.is_valid():
-        serializer.save()  # 🟢 Application status + officer_comment updated
-
-        # Refresh to get updated status
-        app.refresh_from_db()
-
+        serializer.save()
         app.reviewed_at = timezone.now()
         app.save()
-
-        # 🔥 Send notification to the farmer based on status
-        current_status = app.status
-
-        if current_status == "Approved":
-            notify_user(
-                user=app.user,
-                notif_type="application",
-                subject="✅ Application Approved!",
-                message=f"🎉 Success! Your application for the '{app.subsidy.title}' subsidy has been Approved by Officer {request.user.full_name}. See the details below!"
-            )
-
-            notify_user(
-                user=app.user,
-                notif_type="payment",
-                subject="💰 Subsidy Credited to Your Account!",
-                message=f"🏦 Action Complete: The subsidy amount of ₹{app.subsidy.amount} for '{app.subsidy.title}' has been successfully credited to your registered bank account. Happy farming!"
-            )
-
-        elif current_status == "Rejected":
-            comment = app.officer_comment or "Please check your application dashboard for missing documentation or non-eligibility criteria."
-            notify_user(
-                user=app.user,
-                notif_type="application",
-                subject="❌ Application Rejected",
-                message=f"⚠️ Important Update: We regret to inform you that your subsidy application for '{app.subsidy.title}' was rejected. Reason: {comment}. You may be able to appeal or re-apply."
-            )
-
-        elif current_status == "Under Review":
-            notify_user(
-                user=app.user,
-                notif_type="application",
-                subject="⏳ Application Under Review",
-                message=f"🔎 Processing: Your application for '{app.subsidy.title}' is actively Under Review by Officer {request.user.full_name}. We aim to finalize the decision soon. Thank you for your patience."
-            )
-
         return Response({"message": "Application updated", "status": app.status})
 
     return Response(serializer.errors, status=400)
-
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -300,15 +307,12 @@ def officer_verify_documents(request, app_id):
     except SubsidyApplication.DoesNotExist:
         return Response({"detail": "Application not found"}, status=404)
 
-    verified = str(request.data.get("verified")).lower() in ["true", "1", "yes"]
-
-    if verified:
+    verified = request.data.get("verified")
+    if verified is True:
         app.document_status = "Verified"
     else:
-        app.document_status = "Rejected"
-
+        app.document_status = "Rejected"   # FLAG DOCUMENTS
     app.save()
-
 
     return Response({
         "message": "Document status updated",

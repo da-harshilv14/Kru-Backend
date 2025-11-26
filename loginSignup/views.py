@@ -245,11 +245,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             refresh = tokens.get("refresh")
             access = tokens.get("access")
 
-            access_age = 300
+            access_age = 24 * 3600
             refresh_age = 7 * 24 * 3600
 
             if remember_me:
-                access_age = 86400
+                access_age = 2 * 24 * 3600
                 refresh_age = 30 * 24 * 3600
 
             response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None", max_age=access_age)
@@ -325,11 +325,11 @@ class VerifyOTPView(APIView):
         access = str(refresh.access_token)
         refresh_token = str(refresh)
 
-        access_age = 300
+        access_age = 24 * 3600
         refresh_age = 7 * 24 * 3600
 
         if remember:
-            access_age = 86400
+            access_age = 2 * 24 * 3600
             refresh_age = 30 * 24 * 3600
 
         response = Response({
