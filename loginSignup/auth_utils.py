@@ -58,10 +58,6 @@ class GoogleLoginView(APIView):
                     "full_name": user.full_name,
                     "role": user.role
                 },
-                "data": {
-                    "access": access,
-                    "refresh": refresh_token
-                }
             }, status=status.HTTP_200_OK)
 
             # 🔥 Set cookies like normal login
