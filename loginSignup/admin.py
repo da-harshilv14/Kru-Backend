@@ -1,15 +1,19 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
 from .models import User, OTP
 from .forms import UserCreationFormm, UserChangeFormm
+from django.contrib.auth.admin import UserAdmin
 
+
+# --------------------------------------------
+# Custom User Admin (your existing code)
+# --------------------------------------------
 
 class CustomUserAdmin(UserAdmin):
     model = User
     add_form = UserCreationFormm
     form = UserChangeFormm
 
-    list_display = ("full_name", "email_address", "mobile_number", "role", "aadhaar_number", "is_staff", "is_active")
+    list_display = ("id", "full_name", "email_address", "mobile_number", "role", "aadhaar_number", "is_staff", "is_active")
     list_filter = ("role", "is_staff", "is_active")
 
     fieldsets = (
@@ -20,15 +24,22 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             "classes": ("wide",),
-            "fields": ("full_name", "email_address", "mobile_number", "aadhaar_number", "role", "password1", "password2", "is_staff", "is_active"),
+            "fields": (
+                "full_name", "email_address", "mobile_number", "aadhaar_number",
+                "role", "password1", "password2", "is_staff", "is_active"
+            ),
         }),
     )
     search_fields = ("email_address", "mobile_number", "full_name")
     ordering = ("email_address",)
-    
 
 
 admin.site.register(User, CustomUserAdmin)
+
+
+# --------------------------------------------
+# OTP Admin — NEW
+# --------------------------------------------
 
 @admin.register(OTP)
 class OTPAdmin(admin.ModelAdmin):

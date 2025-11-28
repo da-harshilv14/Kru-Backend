@@ -15,7 +15,7 @@ def login_with_otp_success(user):
     refresh_token = str(refresh)
 
     response = Response({"message": "Login successful"})
-    response.set_cookie("access_token", access, httponly=True, max_age=24*60*60)
+    response.set_cookie("access_token", access, httponly=True, max_age=300)
     response.set_cookie("refresh_token", refresh_token, httponly=True, max_age=7*24*60*60)
     return response
 
@@ -47,7 +47,7 @@ class GoogleLoginView(APIView):
             refresh_token = str(refresh)
 
             # Cookie expiry times
-            access_max_age = 24*60*60
+            access_max_age = 300
             refresh_max_age = 7 * 24 * 60 * 60
 
             # Create response
@@ -57,7 +57,7 @@ class GoogleLoginView(APIView):
                     "email": email,
                     "full_name": user.full_name,
                     "role": user.role
-                },
+                }
             }, status=status.HTTP_200_OK)
 
             # 🔥 Set cookies like normal login

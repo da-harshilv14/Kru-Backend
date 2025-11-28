@@ -1,6 +1,7 @@
 # documents/serializers.py
 from rest_framework import serializers
 from .models import Document
+import cloudinary
 from cloudinary.utils import cloudinary_url
 
 class DocumentSerializer(serializers.ModelSerializer):

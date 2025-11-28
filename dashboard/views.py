@@ -1,3 +1,4 @@
+# app/views.py
 from rest_framework import generics, permissions    
 from rest_framework.parsers import MultiPartParser, FormParser
 from .models import UserProfile

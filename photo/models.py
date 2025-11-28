@@ -14,8 +14,12 @@ class Document(models.Model):
         ('aadhar_card', 'Aadhar Card'),
         ('land_document', 'Copy of 7/12 and 8-A'),
     ]
-    
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='documents')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='photo_documents',        # <= unique name
+        related_query_name='photo_document'    # <= optional: useful in queries
+    )
     title = models.CharField(max_length=200)
     document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPES)
     document_number = models.CharField(max_length=50)

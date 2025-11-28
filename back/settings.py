@@ -9,27 +9,30 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+import sys
 
+import cloudinary
+from datetime import timedelta
 from pathlib import Path
 import os
 from dotenv import load_dotenv
 import dj_database_url
-load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env file from the back directory
+load_dotenv(dotenv_path=BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY", "unsafe-default-key-for-dev")
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
-
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost").split(",")
+# Allow both localhost and production domains
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,kru-backend.onrender.com").split(",")
 
 
 # Application definition
@@ -58,33 +61,34 @@ INSTALLED_APPS = [
     'cloudinary_storage',
     'SubsidyRecommandation',
     'subsidy',
-    'anymail',
+    "anymail",
     'news_post',
-    'notifications',
-    'subsidy_provider'
 ]
+
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "loginSignup.authentication.CookieJWTAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),    
+    ),
 }
 
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # 'back.middleware.JWTAuthenticationFromCookie',  # Must be after AuthenticationMiddleware
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',  
-    'django_otp.middleware.OTPMiddleware',
-    'back.middleware.JWTAuthenticationFromCookie',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+
 ROOT_URLCONF = 'back.urls'
+
 
 TEMPLATES = [
     {
@@ -101,23 +105,25 @@ TEMPLATES = [
     },
 ]
 
-# Session and Cookie settings
+
+# Session and Cookie, CSRF, CORS settings
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = True  # True in production
-SESSION_COOKIE_DOMAIN = None  # Allow localhost
+SESSION_COOKIE_SECURE = not DEBUG  # True in production (HTTPS)
+SESSION_COOKIE_DOMAIN = None  # Allow all domains
 
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = not DEBUG  # True in production (HTTPS)
 CSRF_COOKIE_DOMAIN = None
 
-# CORS settings
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    "CORS_ALLOWED_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000"
-).split(",")
+# Get CORS origins from environment or use defaults (local + production)
+default_cors_origins = "http://localhost:5173,http://localhost:5174,https://krushi-setu.vercel.app"
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", default_cors_origins).split(",")
+# Strip whitespace from each origin
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS]
+
 CORS_ALLOW_HEADERS = [
     "content-type",
     "authorization",
@@ -137,11 +143,11 @@ CORS_ALLOW_METHODS = [
     "OPTIONS",
 ]
 
-
-CSRF_TRUSTED_ORIGINS = os.environ.get(
-    "CSRF_TRUSTED_ORIGINS",
-    "http://localhost:3000"
-).split(",")
+# CSRF trusted origins (same as CORS for consistency)
+default_csrf_origins = "http://localhost:5173,http://localhost:5174,https://krushi-setu.vercel.app"
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", default_csrf_origins).split(",")
+# Strip whitespace from each origin
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS]
 
 WSGI_APPLICATION = 'back.wsgi.application'
 
@@ -157,29 +163,6 @@ CACHES = {
         }
     }
 }
-
-# Database
-DATABASE_URL = os.getenv("DATABASE_URL")  # e.g. postgresql://user:pass@<neon-host>/<db>?sslmode=require
-
-if DATABASE_URL:
-    DATABASES = {
-        "default": dj_database_url.parse(
-            DATABASE_URL,
-            conn_max_age=600,
-            ssl_require=True,
-        )
-    }
-else:
-    # Fallback for local dev if you don't have Postgres running
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
-
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -215,9 +198,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR/'static']
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
 
 # Use WhiteNoise only in production
 if not DEBUG:
@@ -235,9 +219,8 @@ AUTH_USER_MODEL = "loginSignup.User"
 
 PHONENUMBER_DEFAULT_REGION = 'IN'
 
-from datetime import timedelta
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
@@ -259,21 +242,17 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = None
 
 # Google SMTP settings (as a fallback or alternative)
 # EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.gmail.com'   
-# EMAIL_PORT = 587                               
-# EMAIL_USE_TLS = True  
-# EMAIL_USE_SSL = False                          
-# EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')    
-# # EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER 
-
-CORS_ALLOW_ALL_ORIGINS = True
-MIDDLEWARE.insert(0, 'corsheaders.middleware.CorsMiddleware')
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_USE_SSL = False
+# EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-#cloudinary-Django integration
-import cloudinary
+# cloudinary-Django integration
 
 cloudinary.config(
     cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
@@ -282,7 +261,7 @@ cloudinary.config(
     secure=True
 )
 
-# Enable logging
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -297,32 +276,375 @@ LOGGING = {
     },
 }
 
-# ============================
-# Production Security Settings
-# ============================
 
-if not DEBUG:
-    # Force HTTPS security
-    SECURE_SSL_REDIRECT = True
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-    # HSTS (ONLY when your production domain is HTTPS)
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
-    # Cookies secure
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-    # XSS & Clickjacking
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-
-#Email Provider
+# Email Provider
 EMAIL_BACKEND = "anymail.backends.sendinblue.EmailBackend"
 
 ANYMAIL = {
     "SENDINBLUE_API_KEY": os.getenv("BREVO_API_KEY"),  # Your Brevo API key
 }
 
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL") 
+# Your verified custom domain email
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
+"""
+Django settings for back project.
+
+Generated by 'django-admin startproject' using Django 5.2.4.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/5.2/topics/settings/
+
+For the full list of settings and their values, see
+https://docs.djangoproject.com/en/5.2/ref/settings/
+"""
+
+import cloudinary
+from datetime import timedelta
+from pathlib import Path
+import os
+from dotenv import load_dotenv
+import dj_database_url
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load .env file from the back directory
+load_dotenv(dotenv_path=BASE_DIR / '.env')
+
+
+# Quick-start development settings - unsuitable for production
+# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+
+SECRET_KEY = os.environ.get("SECRET_KEY", "unsafe-default-key-for-dev")
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
+# Allow both localhost and production domains
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,kru-backend.onrender.com").split(",")
+
+
+# Application definition
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    "corsheaders",
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    "loginSignup",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    'phonenumber_field',
+    'django_otp',
+    'django_otp.plugins.otp_static',
+    'django_otp.plugins.otp_totp',
+    'django_otp.plugins.otp_hotp',
+    'app',
+    'dashboard',
+    'support',
+    'photo',
+    'cloudinary',
+    'cloudinary_storage',
+    'SubsidyRecommandation',
+    'subsidy',
+    "anymail",
+    'news_post',
+    'subsidy_provider',
+    'notifications'
+]
+
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "loginSignup.authentication.CookieJWTAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+}
+
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # 'back.middleware.JWTAuthenticationFromCookie',  # Must be after AuthenticationMiddleware
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+
+ROOT_URLCONF = 'back.urls'
+
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR/'templates'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+
+# Session and Cookie, CSRF, CORS settings
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG  # True in production (HTTPS)
+SESSION_COOKIE_DOMAIN = None  # Allow all domains
+
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SECURE = not DEBUG  # True in production (HTTPS)
+CSRF_COOKIE_DOMAIN = None
+
+CORS_ALLOW_CREDENTIALS = True
+# Get CORS origins from environment or use defaults (local + production)
+default_cors_origins = "http://localhost:5173,http://localhost:5174,https://krushi-setu.vercel.app"
+CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", default_cors_origins).split(",")
+# Strip whitespace from each origin
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS]
+
+CORS_ALLOW_HEADERS = [
+    "content-type",
+    "authorization",
+    "x-csrftoken",
+    "x-requested-with",
+    "accept",
+    "accept-encoding",
+    "cookie",
+]
+
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+]
+
+# CSRF trusted origins (same as CORS for consistency)
+default_csrf_origins = "http://localhost:5173,http://localhost:5174,https://krushi-setu.vercel.app"
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", default_csrf_origins).split(",")
+# Strip whitespace from each origin
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS]
+
+WSGI_APPLICATION = 'back.wsgi.application'
+
+# Cache configuration for faster responses
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+        'TIMEOUT': 300,  # 5 minutes default
+        'OPTIONS': {
+            'MAX_ENTRIES': 1000,
+            'CULL_FREQUENCY': 3,
+        }
+    }
+}
+
+# Password validation
+# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+
+# Internationalization
+# https://docs.djangoproject.com/en/5.2/topics/i18n/
+
+LANGUAGE_CODE = 'en-us'
+
+TIME_ZONE = 'UTC'
+
+USE_I18N = True
+
+USE_TZ = True
+
+
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.2/howto/static-files/
+
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+
+# Use WhiteNoise only in production
+if not DEBUG:
+    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+else:
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+AUTH_USER_MODEL = "loginSignup.User"
+
+PHONENUMBER_DEFAULT_REGION = 'IN'
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=5),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+}
+
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+
+# SendGrid Email settings
+# EMAIL_BACKEND = 'sendgrid_backend.SendgridBackend'
+# SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+# SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+# SENDGRID_ECHO_TO_STDOUT = True
+
+# Google SMTP settings (as a fallback or alternative)
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_USE_SSL = False
+# EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+# EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# cloudinary-Django integration
+
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+    secure=True
+)
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}
+
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Database
+
+
+
+# 🔥 Detect if tests are running (pytest or Django test)
+IS_TEST = (
+    "pytest" in sys.argv[0]
+    or "test" in sys.argv
+    or any(arg.startswith("pytest") for arg in sys.argv)
+)
+
+
+# ========================================================
+# 🚫 NEVER use Neon DB during tests (pytest/django test)
+# ========================================================
+if IS_TEST:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "test_db.sqlite3",
+        }
+    }
+    print("\n🔍 Using SQLite for TESTS — Neon DB is disabled.\n")
+
+# ========================================================
+# ✅ Normal runtime: If DATABASE_URL exists → NEON
+# ========================================================
+elif DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=True,
+        )
+    }
+    print("\n🟩 Using NEON Postgres database.\n")
+
+# ========================================================
+# ✅ Local development fallback
+# ========================================================
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+    print("\n🟦 Using LOCAL SQLite database.\n")
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# Email Provider
+EMAIL_BACKEND = "anymail.backends.sendinblue.EmailBackend"
+
+ANYMAIL = {
+    "SENDINBLUE_API_KEY": os.getenv("BREVO_API_KEY"),  # Your Brevo API key
+}
+
+# Your verified custom domain email
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
