@@ -79,3 +79,4 @@ django-anymail
 ulid-py
 pytest
 pytest-django
+pillow
