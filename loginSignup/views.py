@@ -290,9 +290,16 @@ class LoginOtpView(APIView):
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=404)
 
-        send_otp(user, "login")
+        otp = send_otp(user, "login")
+
+        if otp is None:  # SMS failed
+            return Response(
+                {"error": "Failed to send OTP. Number not on Twillio"},
+                status=500
+            )
 
         return Response({"message": "OTP sent", "user_id": user.id})
+
 
 
 # --------------------------------------------------------------------
@@ -370,13 +377,25 @@ def verify_email(request):
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=404)
 
+    # Step 1: Verify email OTP
     success, msg = verify_otp(user, "email_verify", otp)
     if not success:
         return Response({"error": msg}, status=400)
 
-    send_otp(user, "mobile_verify")
+    # Step 2: Try sending mobile OTP
+    mobile_otp = send_otp(user, "mobile_verify")
 
-    return Response({"message": "Email verified. OTP sent to your mobile.", "user_id": user.id})
+    if mobile_otp is None:  # SMS failed
+        return Response(
+            {"error": "Email verified, but failed to send OTP to mobile. Number not on Twillio. Signup with valid phone number."},
+            status=500
+        )
+
+    # Step 3: Success
+    return Response(
+        {"message": "Email verified. OTP sent to your mobile.", "user_id": user.id}
+    )
+
 
 
 # --------------------------------------------------------------------
