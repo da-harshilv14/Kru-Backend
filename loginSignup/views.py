@@ -138,19 +138,12 @@ class UserSignupView(generics.CreateAPIView):
         # 1️⃣ Check if user already exists
         # ---------------------------------------------
         existing_user = User.objects.filter(email_address=email).first()
-        existing_user1 = User.objects.filter(mobile_number=mobile).first()
 
-        if existing_user or existing_user1:
+        if existing_user:
             if existing_user.is_active:
                 # User already fully registered
                 return Response(
                     {"error": "Account with email already exists. Please log in."},
-                    status=400
-                )
-            
-            if existing_user1.is_active:
-                return Response(
-                    {"error": "Account with mobile no already exists. Please log in."},
                     status=400
                 )
 
