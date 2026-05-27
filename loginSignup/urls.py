@@ -6,24 +6,17 @@ from .auth_utils import GoogleLoginView
 urlpatterns = [
 
     # ---------------------------------------------------------
-    # Signup (Email + Mobile OTP Flow)
+    # Signup (Email OTP Flow)
     # ---------------------------------------------------------
     path("signup/", views.UserSignupView.as_view(), name="signup"),
     path("verify-email/", views.verify_email, name="verify-email"),
-    path("verify-mobile-otp/", views.verify_mobile_otp, name="verify-mobile-otp"),
-    path("resend-email-otp/", views.resend_email_otp),
-    path("resend-mobile-otp/", views.resend_mobile_otp),
-
-
-    # ---------------------------------------------------------
-    # Mobile OTP Login
-    # ---------------------------------------------------------
-    path("login/", views.LoginOtpView.as_view(), name="login"),
-    path("verify-otp/", views.VerifyOTPView.as_view(), name="verify-otp"),
+    path("resend-email-otp/", views.resend_email_otp, name="resend-email-otp"),
 
     # ---------------------------------------------------------
     # Email + Password Login (JWT)
     # ---------------------------------------------------------
+    # Note: If you want your frontend to use "/login/" instead of "/token/",
+    # you can change the word "token/" below to "login/".
     path("token/", views.CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("token/refresh/", views.CookieTokenRefreshView.as_view(), name="token_refresh"),
 

@@ -13,7 +13,7 @@ class Subsidy(models.Model):
     documents_required = models.JSONField(default=list, blank=True)
     application_start_date = models.DateField(blank=True, null=True)
     application_end_date = models.DateField(blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_subsidies', help_text='User who created this subsidy (subsidy_provider)')
     rating = models.FloatField(default=0, validators=[MinValueValidator(0), MaxValueValidator(5)], help_text="Average rating from 0 to 5 stars")
 

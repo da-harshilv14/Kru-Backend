@@ -60,12 +60,8 @@ def send_otp(user, purpose):
             f"Your {APP_NAME} {purpose.replace('_', ' ')} OTP is {otp}. "
             f"It expires in 5 minutes. Do NOT share this with anyone."
         )
-        try:
-            send_sms(user.mobile_number, message)
-            return otp   # SUCCESS
-        except Exception as e:
-            print("SMS failed:", e)
-            return None  # FAILURE
+        send_sms(user.mobile_number, message)
+        return otp
 
     # --------- EMAIL for other OTP purposes ---------
 

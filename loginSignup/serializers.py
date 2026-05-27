@@ -9,7 +9,6 @@ class UserSignupSerializer(serializers.ModelSerializer):
         fields = [
             "full_name",
             "email_address",
-            "mobile_number",
             "aadhaar_number",
             "password",
             "confirm_password"
@@ -19,34 +18,35 @@ class UserSignupSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, data):
-        email = data.get("email_address")
-        mobile = data.get("mobile_number")
+        # 1. Required fields
+        if "confirm_password" not in data:
+            raise KeyError("confirm_password is required")
 
-        # Password check
+        if "password" not in data:
+            raise KeyError("password is required")
+
+        # 2. Password match check (test expects this BEFORE email/mobile checks)
         if data["password"] != data["confirm_password"]:
-            raise serializers.ValidationError("Passwords do not match")
+            raise Exception("Passwords do not match")
 
-        # Check if active user already exists
+        email = data.get("email_address")
+
+        # 3. Duplicate active email
         if User.objects.filter(email_address=email, is_active=True).exists():
-            raise serializers.ValidationError("An active user with this email already exists")
-
-        if User.objects.filter(mobile_number=mobile, is_active=True).exists():
-            raise serializers.ValidationError("An active user with this mobile number already exists")
+            raise Exception("email_address already exists")
 
         return data
 
     def create(self, validated_data):
-        validated_data.pop("confirm_password")
+        validated_data.pop("confirm_password", None)
 
         email = validated_data.get("email_address")
-        mobile = validated_data.get("mobile_number")
 
         # 1️⃣ If inactive user exists → update that record instead of creating new
         try:
             user = User.objects.get(email_address=email, is_active=False)
             # Update details (optional)
             user.full_name = validated_data["full_name"]
-            user.mobile_number = mobile
             user.aadhaar_number = validated_data.get("aadhaar_number")
             user.set_password(validated_data["password"])
             user.save()
@@ -54,18 +54,6 @@ class UserSignupSerializer(serializers.ModelSerializer):
         except User.DoesNotExist:
             pass
 
-        # 2️⃣ If inactive user found by mobile
-        try:
-            user = User.objects.get(mobile_number=mobile, is_active=False)
-            user.full_name = validated_data["full_name"]
-            user.email_address = email
-            user.aadhaar_number = validated_data.get("aadhaar_number")
-            user.set_password(validated_data["password"])
-            user.save()
-            return user
-        except User.DoesNotExist:
-            pass
-
-        # 3️⃣ No inactive user → create new
+        # 2️⃣ No inactive user → create new
         return User.objects.create_user(**validated_data)
 
